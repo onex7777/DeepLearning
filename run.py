@@ -4,7 +4,8 @@ import time
 from data_utils import ChineseCorpus, Vocab
 from model import TransformerXL
 import sys
-
+import warnings
+warnings.filterwarnings('ignore')
 # 'Description: Transformer-XL Simplified Version.'
 # vocabulary file
 VOCAB_FILE = 'data/poetry/vocab.pkl'
@@ -14,7 +15,7 @@ DATA_PATH = 'data/poetry'
 OUTPUT_PATH = 'output/'
 # tensorboard summary
 SUMMARY_PATH = 'summary/'
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 # target length, or sequence length
 SEQ_LEN = 50
 # memory length
@@ -39,13 +40,13 @@ WARMUP_STEPS = 0
 # initial learning rate
 LEARNING_RATE = 0.0001
 # minimal learning rate
-MIN_LEARNING_RATE = 0.004
+MIN_LEARNING_RATE = 0.000004
 # clips values of multiple tensors by the ratio of the sum of their norms
 CLIP_NORM = 0.25
 # number of steps between show information during training
 VERBOSE_STEP = 100
-# number of steps between save model
-SAVE_STEP = 2000
+# number of steps between save model 2000
+SAVE_STEP = 500
 # number of steps between verify model
 VALID_STEP = 500
 EARLY_STOPPING_TIMES = 5
@@ -86,8 +87,7 @@ def model_fn():
     return model
 
 
-corpus = ChineseCorpus(path=DATA_PATH, vocab=Vocab(VOCAB_FILE))
-model = model_fn()
+
 
 
 def logits_to_symbols(logits):
@@ -159,15 +159,14 @@ def train():
             outs = logits_to_symbols(logits)[:5]
             print(inps, '\n', outs, '\n', sep='')
 
-        if step % SAVE_STEP == 0:
+        if (step+1) % SAVE_STEP == 0:
             print('saving checkpoint for epoch {} at {}'.format(
                 step, ckpt_manager.save()))
-
-        # if step % VALID_STEP == 0:
-        #     loss = evaluate()
-        #     print(f'====\nvalidation average loss: {loss:.3f}\n====')
-        #     with writer.as_default():
-        #         tf.summary.scalar('valid_loss', loss, step=step)
+        if (step + 1) % VALID_STEP == 0:
+            loss = evaluate()
+            print(f'====\nvalidation average loss: {loss:.3f}\n====')
+            with writer.as_default():
+                tf.summary.scalar('valid_loss', loss, step=step)
 
         if step >= STEPS:
             print(f'reach max step of iteations {STEPS}, training completed.')
@@ -185,7 +184,7 @@ def evaluate():
         logits, mems = model(inputs, mems=mems, training=False)
         loss = loss_function(labels, logits)
         # statistic total loss
-        cnt = np.prod(np.shape(labels))
+        cnt = np.prod(np.shape(labels)) # 相乘
         total_cnt += cnt
         total_loss += loss * cnt
 
@@ -237,9 +236,19 @@ def inference(sentence=None, tgt_len=50, mem_len=50, max_len=64):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) <= 1:
-        raise ValueError('Missing running method!')
-    if sys.argv[1] == 'train':
+    # if len(sys.argv) <= 1:
+    #     raise ValueError('Missing running method!')
+    # if sys.argv[1] == 'train':
+    #     train()
+    # if sys.argv[1] == 'inference':
+    #     inference()
+    training = False
+    corpus = ChineseCorpus(path=DATA_PATH, vocab=Vocab(VOCAB_FILE))
+    if training:
+        model = model_fn()
         train()
-    if sys.argv[1] == 'inference':
-        inference()
+    else:
+        sentence = "承宝运，驯致隆平。鸿庆被寰瀛。时清俗阜，治定功成。遐迩咏由庚。严郊祀，文物声明。会天正、星拱奏严更。" \
+                   "布羽仪簪缨。宸心虔洁，明德播惟馨。动苍冥。神降享精诚。燔柴半，万乘移天仗，肃銮辂旋衡。千官云拥，群后葵倾。" \
+                   "玉帛旅明庭。韶荐，金奏谐声。集休亨。皇泽浃黎庶，普率洽恩荣。仰钦元后，睿圣贯三灵。"
+        inference(sentence)

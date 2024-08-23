@@ -1,11 +1,20 @@
 import tensorflow as tf
+import numpy as np
+import logging
+logging.warning("ignore")
+
 
 INITIALIZER = tf.keras.initializers.RandomNormal(stddev=0.01)
+
+def gelu(x):
+    return 0.5 * x * (1 + tf.tanh(tf.sqrt(2 / np.pi) * (x + 0.044715 * tf.pow(x, 3))))
+
+tf.keras.utils.get_custom_objects().update({'gelu': tf.keras.layers.Activation(gelu)})
 
 
 def relative_mask(q_len, m_len):
     """相对位置掩码，当前位置左侧为1、右侧为0"""
-    mask = tf.sequence_mask(tf.range(1, q_len + 1), q_len, dtype=tf.float32)
+    mask = tf.sequence_mask(tf.range(1, q_len + 1), q_len, dtype=tf.float32)  # 下三角矩阵
     mask = tf.pad(mask, [[0, 0], [m_len, 0]], constant_values=1)
     return mask
 
@@ -22,7 +31,7 @@ def positional_embedding(k_len, d_model):
 def point_wise_feed_forward_network(d_model, d_ff):
     """前馈网络"""
     return tf.keras.Sequential([
-        tf.keras.layers.Dense(d_ff, activation='relu',
+        tf.keras.layers.Dense(d_ff, activation='gelu',
                               kernel_initializer=INITIALIZER, name='ffn1'),
         tf.keras.layers.Dense(d_model, kernel_initializer=INITIALIZER, name='ffn2')
     ])
@@ -38,13 +47,9 @@ class RelMultiHeadAttention(tf.keras.layers.Layer):
         self.d_model = d_model
         self.d_depth = self.d_model // self.num_heads
 
-        self.w_head = tf.keras.layers.Dense(
-            3 * d_model, use_bias=False, kernel_initializer=INITIALIZER)
-        self.r_head = tf.keras.layers.Dense(
-            d_model, use_bias=False, kernel_initializer=INITIALIZER)
-
-        self.dense = tf.keras.layers.Dense(
-            d_model, use_bias=False, kernel_initializer=INITIALIZER)
+        self.w_head = tf.keras.layers.Dense(3 * d_model, use_bias=False, kernel_initializer=INITIALIZER)
+        self.r_head = tf.keras.layers.Dense(d_model, use_bias=False, kernel_initializer=INITIALIZER)
+        self.dense = tf.keras.layers.Dense(d_model, use_bias=False, kernel_initializer=INITIALIZER)
 
         self.dropout1 = tf.keras.layers.Dropout(dropout_rate)
         self.dropout2 = tf.keras.layers.Dropout(dropout_rate)
@@ -229,9 +234,12 @@ if __name__ == '__main__':
                                     n_layer=n_layer,
                                     dropout_rate=dropout_rate,
                                     untie_rel_bias=True)
-    inputs = tf.reshape(tf.range(batch_size * q_len), shape=(batch_size, q_len))
-    output1, mems1 = mem_transformer(inputs, training=False)
-    mem_transformer.mems = mems1
-    output2, mems2 = mem_transformer(inputs, training=False)
-    print(output1[0][0])
-    print(output2[0][0])
+    inputs1 = tf.convert_to_tensor([[1, 2, 3, 4, 3, 5, 6, 8, 7, 9],
+                                    [2, 8, 3, 6, 4, 9, 5, 8, 4, 4]])
+    inputs2 = tf.convert_to_tensor([[10, 11, 13, 14, 13, 51, 16, 18, 17, 19, 21, 13],
+                                    [20, 18, 13, 16, 41, 19, 15, 18, 41, 41, 14, 15]])
+    output1, mems1 = mem_transformer(inputs1, training=False)
+    # mem_transformer.mems = mems1
+    output2, mems2 = mem_transformer(inputs2, mems=mems1, training=False)
+    print("output1:",output1.shape)
+    print("output2:",output2.shape)

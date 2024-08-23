@@ -162,11 +162,11 @@ class ChineseCorpus(object):
                 logging.info('{} already exists.'.format(tfrecord_name))
                 continue
 
-            encoded = self.vocab.encode_file(file, ordered=True)
+            encoded = self.vocab.encode_file(file, ordered=True) # 将所有语句全部拼接在一起（中间有《eos》符号）
             # ordered sequence to batch
             num_steps = len(encoded) // batch_size
             encoded = encoded[:batch_size * num_steps]
-            batch_data = np.reshape(encoded, (batch_size, num_steps))
+            batch_data = np.reshape(encoded, (batch_size, num_steps)) # 按num_steps长度进行截断
 
             self.convert_to_tfrecord(batch_data, name=name, batch_size=batch_size,
                                      seq_len=seq_len)
@@ -184,7 +184,7 @@ class ChineseCorpus(object):
         # total steps
         num_steps = (np.shape(batched_data)[1] - 1) // seq_len
         for i in range(0, num_steps * seq_len, seq_len):
-            for j in range(batch_size):
+            for j in range(batch_size):   # 按batch_size整理数据（第一个batch为前面0：seq-1长度，第二个batch为seq：2*seq-1长度，以此类推）
                 inputs = batched_data[j, i:i + seq_len]
                 labels = batched_data[j, i + 1:i + seq_len + 1]
                 feature = {
@@ -220,15 +220,15 @@ class ChineseCorpus(object):
         if not os.path.exists(tfrecord):
             self.create_ordered_tfrecords(name, batch_size, seq_len)
         dataset = tf.data.TFRecordDataset(tfrecord)
-        dataset = dataset.map(parser).batch(batch_size)
+        dataset = dataset.map(parser).batch(batch_size) # 进行数据解析
         if name == 'train':
-            dataset = dataset.repeat()
+            dataset = dataset.repeat() # 将数据重复无数遍
 
         return dataset
 
 
 if __name__ == '__main__':
-    vocab_file = 'data/poetry/train.txt'
+    vocab_file = 'data/poetry/total.txt'
     vocab_save_dir = 'data/poetry/'
     vocab = Vocab(vocab_file, vocab_save_dir, min_freq=2, max_size=10000)
 
