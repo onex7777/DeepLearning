@@ -17,7 +17,7 @@ def onnx2trt(model_version_dir, onnx_model_file, max_batch):
         print(parser.get_error(idx))
 
     if not success:
-        pass  # Error handling code here
+        pass  # Error handling code1 here
 
     profile = builder.create_optimization_profile()
     # INPUT0可以接收[1, 2] -> [max_batch, 2]的维度
